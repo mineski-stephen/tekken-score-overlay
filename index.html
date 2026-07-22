@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tekken Score Overlay</title>
+
+<style>
+  /* ===== Font ===== */
+  @font-face {
+    font-family: 'Anton';
+    src: url('fonts/Anton-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    /* =====================================================================
+       POSITION & SIZE  —  nudge these to line the bars up with your HUD.
+       (Values are in vh/vw so they scale with any 16:9 resolution.)
+       ===================================================================== */
+    --bar-top:     0vh;     /* gap from the top edge of the screen            */
+    --center-gap:  13vw;    /* gap from screen centre to each bar's inner edge */
+    --bar-height:  6.4vh;   /* thickness of the bars                          */
+    --slant:       2.4vh;   /* trapezoid angle on the inner end (0 = rectangle)*/
+    --name-size:   3.4vh;   /* player-name font size                          */
+    --score-size:  4.2vh;   /* score-number font size                         */
+    --name-width:  20vw;    /* FIXED black-plate width; longer names scroll   */
+
+    /* ===== Colours ===== */
+    --accent:      #d61f26;                 /* dividers / ratio-gate accent    */
+    --bar-bg:      rgba(12, 12, 16, 0.99);  /* name box background            */
+    --name-text:   #ffffff;                 /* player name colour             */
+    --score-bg:    #d61f26;                 /* score BOX colour (set by lops)  */
+    --score-text:  #ffffff;                 /* score NUMBER (auto white/black) */
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;          /* transparent for OBS */
+    font-family: 'Anton', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* full-screen wrapper so the ratio gate can hide the whole thing at once */
+  #scorebar { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+
+  /* ===== A side (P1 / P2) ===== */
+  .side {
+    position: fixed;
+    top: var(--bar-top);
+    height: var(--bar-height);
+    display: flex;
+    align-items: stretch;
+    filter: drop-shadow(0 0.3vh 0.9vh rgba(0, 0, 0, 0.55));
+    transition: transform 0.5s cubic-bezier(.4, 0, .2, 1), opacity 0.45s ease;
+    will-change: transform;
+  }
+
+  /* P1 sits left of centre, P2 right of centre */
+  .side.p1 {
+    right: calc(50% + var(--center-gap));
+    clip-path: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+  }
+  .side.p2 {
+    left: calc(50% + var(--center-gap));
+    clip-path: polygon(0 0, 100% 0, 100% 100%, var(--slant) 100%);
+  }
+
+  .name {
+    display: flex;
+    align-items: center;
+    width: var(--name-width);       /* fixed length, not content-sized */
+    flex: none;
+    background: var(--bar-bg);
+    color: var(--name-text);
+    font-size: var(--name-size);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0 1.6vh;
+    line-height: 1;
+    overflow: hidden;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .name-inner { display: inline-block; white-space: nowrap; }
+
+  /* short names hug the score (inner) side → symmetric plates */
+  .side.p1 .name { justify-content: flex-end; }
+  .side.p2 .name { justify-content: flex-start; }
+
+  /* long names scroll like a marquee */
+  .side.p1 .name.marquee,
+  .side.p2 .name.marquee { justify-content: flex-start; }
+  .name.marquee .name-inner { animation: marquee var(--mq-dur, 8s) linear infinite; }
+  @keyframes marquee {
+    0%, 12%  { transform: translateX(0); }
+    50%, 62% { transform: translateX(calc(-1 * var(--mq-shift, 0px))); }
+    100%     { transform: translateX(0); }
+  }
+
+  .score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--score-bg);
+    color: var(--score-text);
+    font-size: var(--score-size);
+    min-width: calc(var(--bar-height) * 1.4);
+    padding: 0 1.4vh;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+  /* extra room on the slanted (inner) side so digits never touch the angle */
+  .side.p1 .score { padding-right: calc(1.4vh + var(--slant)); }
+  .side.p2 .score { padding-left:  calc(1.4vh + var(--slant)); }
+
+  /* thin divider between name and score */
+  .side.p1 .name { border-right: 0.3vh solid rgba(0, 0, 0, 0.35); }
+  .side.p2 .name { border-left:  0.3vh solid rgba(0, 0, 0, 0.35); }
+
+  /* ===== Visibility toggle: slide the bars up and off-screen ===== */
+  body.overlay-hidden .side {
+    transform: translateY(calc(-1 * (var(--bar-top) + var(--bar-height) + 4vh)));
+    opacity: 0;
+  }
+
+  /* ===== 16:9 ratio gate ===== */
+  #ratio-gate {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #000;
+    color: #fff;
+    z-index: 100;
+    padding: 5vw;
+  }
+  #ratio-gate .msg {
+    font-family: 'Anton', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+    font-size: clamp(20px, 4vw, 52px);
+  }
+  #ratio-gate .sub {
+    margin-top: 2.5vh;
+    font-family: 'Anton', sans-serif;
+    color: var(--accent);
+    font-size: clamp(14px, 2.4vw, 30px);
+    letter-spacing: 0.04em;
+  }
+
+  body.bad-ratio #scorebar  { display: none; }
+  body.bad-ratio #ratio-gate { display: flex; }
+</style>
+</head>
+<body>
+
+  <!-- P1_Name P1_Score  ...(game timer)...  P2_Score P2_Name -->
+  <div id="scorebar">
+    <div class="side p1">
+      <div class="name"  id="p1-name"><span class="name-inner">Player 1</span></div>
+      <div class="score" id="p1-score">0</div>
+    </div>
+    <div class="side p2">
+      <div class="score" id="p2-score">0</div>
+      <div class="name"  id="p2-name"><span class="name-inner">Player 2</span></div>
+    </div>
+  </div>
+
+  <!-- Shown when the viewport is not 16:9 -->
+  <div id="ratio-gate">
+    <div>
+      <div class="msg">Please set the viewport resolution<br />to a 16:9 aspect ratio</div>
+      <div class="sub">(e.g. 1920&times;1080 &nbsp;/&nbsp; 1280&times;720 &nbsp;/&nbsp; 2560&times;1440)</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+  /* =======================================================================
+     SUPABASE CREDENTIALS
+     ======================================================================= */
+  const SUPABASE_URL      = 'https://ehwrcrxvvwqecwokhasr.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVod3Jjcnh2dndxZWN3b2toYXNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNTM0MTksImV4cCI6MjA5NjYyOTQxOX0.F-25eDngXzanvMnpuki_nUTnvRELPqb_sBG59KbMm-o';
+  /* ======================================================================= */
+
+  const ROW_ID = 1;
+  const POLL_MS = 4000;
+
+  const DEFAULTS = {
+    p1_name: 'Player 1', p1_score: 0,
+    p2_name: 'Player 2', p2_score: 0,
+    score_color: '#D61F26',
+    visible: true,
+  };
+
+  const el = {
+    p1name:      document.getElementById('p1-name'),
+    p1nameInner: document.querySelector('#p1-name .name-inner'),
+    p1score:     document.getElementById('p1-score'),
+    p2name:      document.getElementById('p2-name'),
+    p2nameInner: document.querySelector('#p2-name .name-inner'),
+    p2score:     document.getElementById('p2-score'),
+  };
+
+  const isHex = (c) => typeof c === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c);
+  const normalizeHex = (c) => {
+    let v = String(c || '').trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) v = '#' + v.slice(1).split('').map((h) => h + h).join('');
+    return v.toUpperCase();
+  };
+  // score number stays white, flips to black when the box colour is light
+  const idealText = (hex) => {
+    const h = normalizeHex(hex);
+    const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 >= 140 ? '#000000' : '#FFFFFF';
+  };
+
+  // fixed-width name plates; scroll (marquee) only when the text overflows
+  function fitName(box) {
+    box.classList.remove('marquee');
+    const inner = box.firstElementChild;
+    const cs = getComputedStyle(box);
+    const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const overflow = inner.scrollWidth - avail;   // justify-independent
+    if (avail > 0 && overflow > 4) {
+      box.style.setProperty('--mq-shift', Math.ceil(overflow) + 'px');
+      box.style.setProperty('--mq-dur', (Math.round(overflow / 45 * 2) + 3) + 's');
+      box.classList.add('marquee');
+    }
+  }
+  function fitNames() { fitName(el.p1name); fitName(el.p2name); }
+
+  function render(data) {
+    const d = data || {};
+    el.p1nameInner.textContent = (d.p1_name ?? DEFAULTS.p1_name);
+    el.p2nameInner.textContent = (d.p2_name ?? DEFAULTS.p2_name);
+    el.p1score.textContent = (d.p1_score ?? DEFAULTS.p1_score);
+    el.p2score.textContent = (d.p2_score ?? DEFAULTS.p2_score);
+
+    // score BOX colour (from lops); number auto white/black for contrast
+    const boxColor = isHex(d.score_color) ? normalizeHex(d.score_color) : DEFAULTS.score_color;
+    document.documentElement.style.setProperty('--score-bg', boxColor);
+    document.documentElement.style.setProperty('--score-text', idealText(boxColor));
+
+    // visibility (slides the bars up/away via CSS transition)
+    const visible = (d.visible ?? DEFAULTS.visible);
+    document.body.classList.toggle('overlay-hidden', !visible);
+
+    fitNames();
+  }
+
+  /* ---- 16:9 aspect-ratio gate ---- */
+  function checkRatio() {
+    const ratio = window.innerWidth / window.innerHeight;
+    const target = 16 / 9;
+    const ok = Math.abs(ratio - target) <= 0.02;
+    document.body.classList.toggle('bad-ratio', !ok);
+  }
+  window.addEventListener('resize', () => { checkRatio(); fitNames(); });
+
+  /* ---- Supabase wiring ---- */
+  const configured = !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+                     !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE');
+
+  async function boot() {
+    render(DEFAULTS);      // show something immediately
+    checkRatio();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitNames);
+
+    if (!configured) {
+      console.warn('[overlay] Supabase not configured yet — showing default values.');
+      return;
+    }
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function fetchNow() {
+      const { data, error } = await supabase
+        .from('overlay').select('*').eq('id', ROW_ID).maybeSingle();
+      if (error) { console.error('[overlay] fetch error:', error.message); return; }
+      if (data)  render(data);
+    }
+
+    await fetchNow();
+
+    supabase
+      .channel('overlay-realtime')
+      .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'overlay', filter: `id=eq.${ROW_ID}` },
+          (payload) => render(payload.new))
+      .subscribe();
+
+    setInterval(fetchNow, POLL_MS);   // polling fallback
+  }
+
+  boot();
+  </script>
+</body>
+</html>

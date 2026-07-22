@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tekken Score — Control Panel</title>
+
+<style>
+  @font-face {
+    font-family: 'Anton';
+    src: url('fonts/Anton-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --accent: #d61f26;
+    --bg: #0d0d11;
+    --card: #17171d;
+    --field: #101015;
+    --border: #2a2a33;
+    --text: #f4f4f6;
+    --muted: #8a8a95;
+    --ok: #35c76a;
+    --danger: #e0393f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 50% -10%, #1b1b24 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 6vh 20px 40px;
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 720px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+  }
+
+  .panel-head {
+    padding: 22px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .panel-head h1 {
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 26px;
+  }
+  .panel-head h1 span { color: var(--accent); }
+
+  #status {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  #status.ok    { color: var(--ok); }
+  #status.err   { color: var(--danger); }
+  #status.busy  { color: var(--text); }
+
+  .players {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    padding: 28px;
+  }
+  @media (max-width: 560px) { .players { grid-template-columns: 1fr; } }
+
+  .player h2 {
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 15px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .player h2::before {
+    content: "";
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 6px 2px;
+  }
+  .field { margin-bottom: 16px; }
+
+  input {
+    width: 100%;
+    background: var(--field);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 17px;
+    padding: 13px 14px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(214, 31, 38, 0.18);
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    padding: 0 28px 28px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 22px;
+    cursor: pointer;
+    transition: transform .06s, filter .15s, background .15s;
+  }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn-push {
+    flex: 1;
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-push:hover:not(:disabled) { filter: brightness(1.1); }
+
+  .btn-reset {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-reset:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+
+  /* ===== Display section (score colour + visibility) ===== */
+  .display {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 22px;
+    align-items: end;
+    padding: 0 28px 24px;
+  }
+  @media (max-width: 560px) { .display { grid-template-columns: 1fr; } }
+
+  .color-row { display: flex; align-items: center; gap: 10px; }
+  input.color-swatch {
+    width: 54px; height: 46px; padding: 4px; flex: none; cursor: pointer;
+  }
+  input.color-hex {
+    width: 128px; flex: none; text-transform: uppercase;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    letter-spacing: 0.04em;
+  }
+  .score-preview {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 46px; height: 46px; padding: 0 12px;
+    background: var(--accent); border-radius: 10px;
+    font-family: 'Anton', sans-serif; font-size: 26px; line-height: 1; color: #fff;
+  }
+
+  .toggle-field { display: flex; flex-direction: column; gap: 8px; }
+  .switch { position: relative; display: inline-block; width: 58px; height: 32px; margin: 0; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: var(--field); border: 1px solid var(--border);
+    border-radius: 999px; transition: background .18s, border-color .18s;
+  }
+  .slider::before {
+    content: ""; position: absolute; height: 24px; width: 24px;
+    left: 3px; top: 3px; border-radius: 50%;
+    background: var(--muted); transition: transform .18s, background .18s;
+  }
+  .switch input:checked + .slider { background: rgba(53, 199, 106, 0.25); border-color: var(--ok); }
+  .switch input:checked + .slider::before { transform: translateX(26px); background: var(--ok); }
+
+  /* ===== Confirmation modal ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+  .modal h3 {
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .modal p.lead { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+  .preview {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 16px;
+    background: var(--field);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 22px;
+    font-size: 15px;
+  }
+  .preview .k { color: var(--muted); }
+  .preview .v { text-align: right; font-weight: 600; }
+
+  .modal-actions { display: flex; gap: 12px; }
+  .btn-cancel {
+    flex: 1;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-cancel:hover { color: var(--text); }
+  .btn-confirm { flex: 1; background: var(--accent); color: #fff; }
+  .btn-confirm:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h1>Tekken <span>Score</span> Control</h1>
+      <div id="status">Connecting…</div>
+    </div>
+
+    <div class="players">
+      <div class="player">
+        <h2>Player 1</h2>
+        <div class="field">
+          <label for="p1-name">Name</label>
+          <input id="p1-name" type="text" autocomplete="off" placeholder="Player 1" />
+        </div>
+        <div class="field">
+          <label for="p1-score">Score</label>
+          <input id="p1-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+        </div>
+      </div>
+
+      <div class="player">
+        <h2>Player 2</h2>
+        <div class="field">
+          <label for="p2-name">Name</label>
+          <input id="p2-name" type="text" autocomplete="off" placeholder="Player 2" />
+        </div>
+        <div class="field">
+          <label for="p2-score">Score</label>
+          <input id="p2-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Display controls -->
+    <div class="display">
+      <div class="field" style="margin-bottom: 0;">
+        <label for="score-color">Score box colour</label>
+        <div class="color-row">
+          <input class="color-swatch" id="score-color" type="color" value="#D61F26" />
+          <input class="color-hex" id="score-color-hex" type="text" maxlength="7" spellcheck="false" value="#D61F26" />
+          <span class="score-preview" id="score-preview">0</span>
+        </div>
+      </div>
+      <div class="toggle-field">
+        <label for="visible-toggle">Overlay visible</label>
+        <label class="switch">
+          <input id="visible-toggle" type="checkbox" checked />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-push"  id="push-btn">Push Changes</button>
+      <button class="btn-reset" id="reset-btn">Reset</button>
+    </div>
+  </div>
+
+  <!-- Confirmation modal (Push only) -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h3>Push these values?</h3>
+      <p class="lead">This updates the live overlay. Your text boxes stay as they are.</p>
+      <div class="preview">
+        <div class="k">Player 1</div><div class="v" id="pv-p1"></div>
+        <div class="k">Player 2</div><div class="v" id="pv-p2"></div>
+        <div class="k">Score box</div><div class="v" id="pv-color"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel"  id="cancel-btn">Cancel</button>
+        <button class="btn-confirm" id="confirm-btn">Confirm &amp; Push</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+  /* =======================================================================
+     SUPABASE CREDENTIALS  —  paste your values between the quotes below.
+     (Must match the values used in index.html.)
+     ======================================================================= */
+  const SUPABASE_URL      = 'https://ehwrcrxvvwqecwokhasr.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVod3Jjcnh2dndxZWN3b2toYXNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNTM0MTksImV4cCI6MjA5NjYyOTQxOX0.F-25eDngXzanvMnpuki_nUTnvRELPqb_sBG59KbMm-o';
+  /* ======================================================================= */
+
+  const ROW_ID = 1;
+  const DEFAULTS = {
+    p1_name: 'Player 1', p1_score: 0,
+    p2_name: 'Player 2', p2_score: 0,
+    score_color: '#D61F26', visible: true,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const inputs = {
+    p1_name:  $('p1-name'),  p1_score: $('p1-score'),
+    p2_name:  $('p2-name'),  p2_score: $('p2-score'),
+  };
+
+  const configured = !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+                     !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE');
+  const sb = configured
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  function setStatus(text, kind) {
+    const s = $('status');
+    s.textContent = text;
+    s.className = kind || '';
+  }
+
+  /* ---- Display controls: colour picker + visibility ---- */
+  const isHex = (c) => typeof c === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c);
+  const normalizeHex = (c) => {
+    let v = String(c || '').trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) {                 // expand #abc -> #aabbcc
+      v = '#' + v.slice(1).split('').map((h) => h + h).join('');
+    }
+    return v.toUpperCase();
+  };
+  // score number stays white, flips to black when the box colour is light
+  const idealText = (hex) => {
+    const h = normalizeHex(hex);
+    const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 >= 140 ? '#000000' : '#FFFFFF';
+  };
+  function applyColorUI(hex) {
+    $('score-color').value = hex;
+    $('score-color-hex').value = hex;
+    $('score-preview').style.background = hex;   // the box colour
+    $('score-preview').style.color = idealText(hex);
+  }
+  $('score-color').addEventListener('input', () => applyColorUI($('score-color').value.toUpperCase()));
+  $('score-color-hex').addEventListener('input', () => {
+    const v = normalizeHex($('score-color-hex').value);
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) applyColorUI(v);
+    else $('score-preview').style.color = v;           // best-effort live preview
+  });
+
+  // The visibility toggle writes immediately, independent of Push
+  $('visible-toggle').addEventListener('change', async () => {
+    const v = $('visible-toggle').checked;
+    setStatus(v ? 'Showing overlay…' : 'Hiding overlay…', 'busy');
+    try {
+      if (!sb) throw new Error('Supabase not configured');
+      const { error } = await sb.from('overlay').update({ visible: v }).eq('id', ROW_ID);
+      if (error) throw error;
+      setStatus(v ? 'Overlay shown ✓' : 'Overlay hidden ✓', 'ok');
+    } catch (e) {
+      $('visible-toggle').checked = !v;                // revert on failure
+      setStatus('Visibility failed: ' + e.message, 'err');
+    }
+  });
+
+  // Read the four boxes into a clean payload (names trimmed, scores -> int >= 0)
+  function readInputs() {
+    const toScore = (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    return {
+      p1_name:  inputs.p1_name.value.trim()  || DEFAULTS.p1_name,
+      p1_score: toScore(inputs.p1_score.value),
+      p2_name:  inputs.p2_name.value.trim()  || DEFAULTS.p2_name,
+      p2_score: toScore(inputs.p2_score.value),
+      score_color: normalizeHex($('score-color').value),
+    };
+  }
+
+  function fillInputs(d) {
+    inputs.p1_name.value  = d.p1_name;
+    inputs.p1_score.value = d.p1_score;
+    inputs.p2_name.value  = d.p2_name;
+    inputs.p2_score.value = d.p2_score;
+    applyColorUI(isHex(d.score_color) ? normalizeHex(d.score_color) : DEFAULTS.score_color);
+    $('visible-toggle').checked = (d.visible ?? DEFAULTS.visible);
+  }
+
+  // Write a payload to the single overlay row
+  async function save(payload) {
+    if (!sb) throw new Error('Supabase not configured');
+    const { error } = await sb
+      .from('overlay')
+      .upsert({ id: ROW_ID, ...payload }, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  /* ---- Load current values on open ---- */
+  async function init() {
+    if (!sb) {
+      fillInputs(DEFAULTS);
+      setStatus('Supabase not configured', 'err');
+      return;
+    }
+    try {
+      const { data, error } = await sb
+        .from('overlay').select('*').eq('id', ROW_ID).maybeSingle();
+      if (error) throw error;
+      fillInputs(data || DEFAULTS);
+      setStatus('Connected', 'ok');
+    } catch (e) {
+      fillInputs(DEFAULTS);
+      setStatus('Load failed: ' + e.message, 'err');
+    }
+  }
+
+  /* ---- Push flow (with confirmation modal) ---- */
+  $('push-btn').addEventListener('click', () => {
+    const p = readInputs();
+    $('pv-p1').textContent = `${p.p1_name} — ${p.p1_score}`;
+    $('pv-p2').textContent = `${p.p2_name} — ${p.p2_score}`;
+    $('pv-color').innerHTML =
+      `<span style="display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;">` +
+      `<span style="width:14px;height:14px;border-radius:3px;border:1px solid var(--border);background:${p.score_color};"></span>` +
+      `${p.score_color}</span>`;
+    $('modal').classList.add('show');
+  });
+
+  $('cancel-btn').addEventListener('click', () => $('modal').classList.remove('show'));
+  $('modal').addEventListener('click', (e) => {
+    if (e.target === $('modal')) $('modal').classList.remove('show');   // click backdrop to close
+  });
+
+  $('confirm-btn').addEventListener('click', async () => {
+    $('modal').classList.remove('show');
+    setStatus('Pushing…', 'busy');
+    $('push-btn').disabled = true;
+    try {
+      await save(readInputs());          // NOTE: text boxes are intentionally left untouched
+      setStatus('Pushed ✓', 'ok');
+    } catch (e) {
+      setStatus('Push failed: ' + e.message, 'err');
+    } finally {
+      $('push-btn').disabled = false;
+    }
+  });
+
+  /* ---- Reset flow (clears boxes to defaults AND pushes defaults) ---- */
+  $('reset-btn').addEventListener('click', async () => {
+    fillInputs(DEFAULTS);                // reset the text boxes
+    setStatus('Resetting…', 'busy');
+    $('reset-btn').disabled = true;
+    try {
+      await save({ ...DEFAULTS });       // push defaults to the overlay
+      setStatus('Reset ✓', 'ok');
+    } catch (e) {
+      setStatus('Reset failed: ' + e.message, 'err');
+    } finally {
+      $('reset-btn').disabled = false;
+    }
+  });
+
+  init();
+  </script>
+</body>
+</html>
