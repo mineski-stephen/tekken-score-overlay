@@ -127,6 +127,17 @@
     box-shadow: 0 0 0 3px rgba(214, 31, 38, 0.18);
   }
 
+  /* score +/- steppers */
+  .score-row { display: flex; align-items: stretch; gap: 8px; }
+  .score-row input { flex: 1; width: auto; min-width: 0; text-align: center; }
+  button.step {
+    flex: none; width: 46px; padding: 0;
+    font-size: 22px; line-height: 1;
+    background: var(--field); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  button.step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
   .actions {
     display: flex;
     gap: 12px;
@@ -277,7 +288,11 @@
         </div>
         <div class="field">
           <label for="p1-score">Score</label>
-          <input id="p1-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+          <div class="score-row">
+            <button type="button" class="step" data-target="p1-score" data-col="p1_score" data-delta="-1" aria-label="Player 1 score minus one">&minus;</button>
+            <input id="p1-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+            <button type="button" class="step" data-target="p1-score" data-col="p1_score" data-delta="1" aria-label="Player 1 score plus one">+</button>
+          </div>
         </div>
       </div>
 
@@ -289,7 +304,11 @@
         </div>
         <div class="field">
           <label for="p2-score">Score</label>
-          <input id="p2-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+          <div class="score-row">
+            <button type="button" class="step" data-target="p2-score" data-col="p2_score" data-delta="-1" aria-label="Player 2 score minus one">&minus;</button>
+            <input id="p2-score" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+            <button type="button" class="step" data-target="p2-score" data-col="p2_score" data-delta="1" aria-label="Player 2 score plus one">+</button>
+          </div>
         </div>
       </div>
     </div>
@@ -511,6 +530,29 @@
     } finally {
       $('reset-btn').disabled = false;
     }
+  });
+
+  // +/- steppers: adjust the box and push that score immediately (no modal)
+  document.querySelectorAll('.step').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const input = $(btn.dataset.target);
+      const col = btn.dataset.col;
+      const delta = parseInt(btn.dataset.delta, 10);
+      let n = parseInt(input.value, 10);
+      if (!Number.isFinite(n)) n = 0;
+      n = Math.max(0, n + delta);
+      input.value = n;
+      const who = col === 'p1_score' ? 'P1' : 'P2';
+      setStatus('Updating ' + who + '…', 'busy');
+      try {
+        if (!sb) throw new Error('Supabase not configured');
+        const { error } = await sb.from('overlay').update({ [col]: n }).eq('id', ROW_ID);
+        if (error) throw error;
+        setStatus(who + ' score → ' + n + ' ✓', 'ok');
+      } catch (e) {
+        setStatus('Update failed: ' + e.message, 'err');
+      }
+    });
   });
 
   init();
