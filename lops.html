@@ -28,6 +28,9 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  /* let flex/grid containers shrink instead of overflowing on narrow screens */
+  .panel, .players, .display, .player, .field, .toggle-field, .score-row, .color-row { min-width: 0; }
+
   body {
     min-height: 100vh;
     background: radial-gradient(1200px 600px at 50% -10%, #1b1b24 0%, var(--bg) 60%);
@@ -55,21 +58,24 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 6px 16px;
   }
   .panel-head h1 {
     font-family: 'Anton', sans-serif;
     font-weight: 400;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    font-size: 26px;
+    font-size: clamp(20px, 5vw, 26px);
   }
   .panel-head h1 span { color: var(--accent); }
 
   #status {
     font-size: 13px;
     color: var(--muted);
-    white-space: nowrap;
+    min-width: 0;
+    text-align: right;
+    word-break: break-word;
   }
   #status.ok    { color: var(--ok); }
   #status.err   { color: var(--danger); }
@@ -185,7 +191,7 @@
     width: 54px; height: 46px; padding: 4px; flex: none; cursor: pointer;
   }
   input.color-hex {
-    width: 128px; flex: none; text-transform: uppercase;
+    flex: 1; min-width: 0; text-transform: uppercase;
     font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
     letter-spacing: 0.04em;
   }
@@ -269,6 +275,16 @@
   .btn-cancel:hover { color: var(--text); }
   .btn-confirm { flex: 1; background: var(--accent); color: #fff; }
   .btn-confirm:hover { filter: brightness(1.1); }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 560px) {
+    body        { padding: 3vh 12px 32px; }
+    .panel-head { padding: 18px 16px; }
+    .players    { padding: 20px 16px; gap: 16px; }
+    .display    { padding: 0 16px 20px; }
+    .actions    { padding: 0 16px 20px; }
+    .color-row  { gap: 8px; }
+  }
 </style>
 </head>
 <body>
